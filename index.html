@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Postman Enterprise BVA Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        postman: {
+                            DEFAULT: '#FF6C37',
+                            hover: '#E05524',
+                            bg: '#FFF5F0'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- MathJax for rendering LaTeX formulas in the methodology -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Custom range slider styling */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            background: #FF6C37;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            margin-top: -6px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            background: #ddd;
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        /* Modal Overlay Transition */
+        #formulaModal {
+            transition: opacity 0.2s ease-in-out;
+        }
+        #formulaModal.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        #formulaModal:not(.hidden) {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* View Transition Animation */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .view-active {
+            animation: fadeIn 0.4s ease-out forwards;
+            display: flex !important; 
+        }
+        .view-hidden {
+            display: none !important; 
+        }
+
+        /* Section Visibility Animation */
+        .input-section {
+            transition: all 0.3s ease-in-out;
+            opacity: 1;
+            max-height: 2500px;
+            overflow: hidden;
+        }
+        .input-section.hidden-section {
+            opacity: 0;
+            max-height: 0;
+            margin: 0;
+            padding: 0;
+            border: none;
+        }
+
+        /* ==========================================
+           Dynamic Cross-Highlighting CSS
+           ========================================== */
+        .input-section-highlightable {
+            transition: all 0.2s ease-in-out;
+            border: 2px solid transparent;
+        }
+        .input-highlight {
+            background-color: #FFF5F0; 
+            border-color: #FF6C37 !important;
+            transform: scale(1.015);
+            box-shadow: 0 4px 12px rgba(255, 108, 55, 0.1);
+            z-index: 10;
+        }
+        .input-dim {
+            opacity: 0.3;
+            filter: grayscale(50%);
+        }
+
+        .output-item {
+            transition: all 0.2s ease-in-out;
+            border: 2px solid transparent;
+        }
+        .output-highlight {
+            background-color: rgba(255, 108, 55, 0.15) !important;
+            border-color: rgba(255, 108, 55, 0.3) !important;
+            transform: scale(1.03);
+            z-index: 10;
+        }
+        .output-dim {
+            opacity: 0.25;
+        }
+
+        /* Risk Mitigation Special FX */
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255, 108, 55, 0); }
+            50% { box-shadow: 0 0 12px 0 rgba(255, 108, 55, 0.25); }
+        }
+        .risk-pulse {
+            animation: pulseGlow 3s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen relative overflow-x-hidden">
+
+    <!-- Formula Modal (Shared) -->
+    <div id="formulaModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-gray-900 bg-opacity-75 backdrop-blur-sm">
+        <div class="bg-white rounded-lg shadow-2xl max-w-lg w-full mx-4 overflow-hidden transform transition-all scale-100">
+            <div class="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-800" id="modalTitle">Calculation Logic</h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6">
+                <div class="mb-4">
+                    <p class="text-xs text-gray-500 uppercase font-bold tracking-wider mb-2">The Formula</p>
+                    <div class="bg-gray-100 p-3 rounded-md font-mono text-xs text-gray-700 break-words" id="modalFormula">
+                        <!-- Formula goes here -->
+                    </div>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 uppercase font-bold tracking-wider mb-2">Key Assumptions</p>
+                    <p class="text-sm text-gray-600 leading-relaxed" id="modalDesc">
+                        <!-- Description goes here -->
+                    </p>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button type="button" onclick="closeModal()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-postman text-base font-medium text-white hover:bg-postman-hover focus:outline-none sm:ml-3 sm:w-auto sm:text-sm cursor-pointer">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Feedback Modal -->
+    <div id="feedbackModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-gray-900 bg-opacity-75 backdrop-blur-sm">
+        <div class="bg-white rounded-lg shadow-2xl max-w-5xl w-full mx-4 h-[90vh] overflow-hidden transform transition-all scale-100 flex flex-col">
+            <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center z-10">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">💡</span>
+                    <h3 class="text-lg font-bold text-gray-800">Feedback & Suggestions</h3>
+                </div>
+                <button onclick="closeFeedbackModal()" class="text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="flex-grow w-full relative bg-white overflow-y-auto relative">
+                <!-- Native HTML Form -->
+                <form id="nativeFeedbackForm" action="https://script.google.com/a/macros/postman.com/s/AKfycbxXEtWLs3xUd5bHbXLrom3XmRNCSR6eJfbuospVklW9H69jhrr7Obt0T71Uro3YqjqJ/exec" method="POST" onsubmit="handleFeedbackSubmit(event)" class="p-6 space-y-8 pb-24">
+                    
+                    <!-- 0. Submitter Info -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-900 mb-1">Your Name <span class="text-red-500">*</span></label>
+                        <p class="text-xs text-gray-500 mb-2">So we can follow up if we have questions about your idea.</p>
+                        <input type="text" name="submitter_name" required class="w-full md:w-1/3 text-sm border-gray-300 rounded-lg shadow-sm focus:border-postman focus:ring-postman" placeholder="e.g., Jane Doe">
+                    </div>
+
+                    <!-- 1. Existing Formulas Table -->
+                    <div>
+                        <h4 class="text-md font-bold text-gray-900 mb-1">1. Existing Formulas</h4>
+                        <p class="text-sm text-gray-500 mb-3">Select "Modify" or "Delete" to provide feedback on our current calculations.</p>
+                        <div class="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/3">Formula</th>
+                                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/4">Action</th>
+                                        <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-5/12">Reasoning / Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="feedback-table-body" class="bg-white divide-y divide-gray-100">
+                                    <!-- Populated automatically by Javascript on load -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 2. Propose New Formulas -->
+                    <div>
+                        <h4 class="text-md font-bold text-gray-900 mb-1">2. Propose New Formula(s)</h4>
+                        <p class="text-sm text-gray-500 mb-3">Identify a missing value driver and how to calculate it.</p>
+                        <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Value Driver Name & Target Audience</label>
+                                <input type="text" name="new_formula_name" class="w-full text-sm border-gray-300 rounded shadow-sm focus:border-postman focus:ring-postman" placeholder="e.g., API Discovery (Platform Eng)">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Math Logic & Benchmark Source</label>
+                                <input type="text" name="new_formula_logic" class="w-full text-sm border-gray-300 rounded shadow-sm focus:border-postman focus:ring-postman" placeholder="e.g., Devs * 2 hrs * $80 (Gartner)">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. General Feedback -->
+                    <div>
+                        <h4 class="text-md font-bold text-gray-900 mb-1">3. General Application Feedback</h4>
+                        <p class="text-sm text-gray-500 mb-3">Share your thoughts on the UI, UX, bugs, or feature enhancements.</p>
+                        <textarea name="general_feedback" rows="3" class="w-full text-sm border-gray-300 rounded-lg shadow-sm focus:border-postman focus:ring-postman" placeholder="What would make this tool a 'must-have' on your sales calls?"></textarea>
+                    </div>
+                </form>
+
+                <!-- Success State (Hidden by default) -->
+                <div id="feedbackSuccess" class="hidden absolute inset-0 bg-white flex-col items-center justify-center text-center p-8 z-20">
+                    <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6">
+                        <svg class="w-10 h-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-3xl font-extrabold text-gray-900 mb-2">Feedback Received!</h3>
+                    <p class="text-gray-500 text-lg mb-8">Thank you for helping us improve the BVA Calculator.</p>
+                    <button type="button" onclick="closeFeedbackModal()" class="px-8 py-3 bg-postman text-white rounded-md text-base font-bold hover:bg-postman-hover transition-colors shadow-md">Return to Calculator</button>
+                </div>
+            </div>
+
+            <!-- Modal Footer Buttons (Sticky to bottom) -->
+            <div id="feedbackFooter" class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end gap-3 absolute bottom-0 left-0 right-0 z-10">
+                <button type="button" onclick="closeFeedbackModal()" class="px-5 py-2.5 border border-gray-300 bg-white rounded-md text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
+                <button type="submit" id="submitBtn" form="nativeFeedbackForm" class="px-5 py-2.5 bg-postman text-white rounded-md text-sm font-semibold hover:bg-postman-hover transition-colors shadow-sm">Submit Feedback</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ========================================== -->
+    <!-- VIEW 1: CALCULATOR                         -->
+    <!-- ========================================== -->
+    <div id="view-calculator" class="view-active flex-col min-h-screen w-full">
+        <!-- Header -->
+        <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+            <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-postman rounded-full flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </div>
+                    <h1 class="text-xl font-bold text-gray-900 tracking-tight">Postman <span class="text-postman">Value Calculator</span></h1>
+                </div>
+                <div class="flex items-center gap-6">
+                    <!-- Feedback Button -->
+                    <button onclick="showFeedbackModal()" class="text-sm font-semibold text-gray-600 hover:text-postman transition-colors flex items-center gap-1.5 cursor-pointer bg-gray-100 px-3 py-1.5 rounded-md hover:bg-postman-bg border border-gray-200">
+                        💡 Feedback
+                    </button>
+                    
+                    <!-- Switch to Methodology Button -->
+                    <button onclick="toggleView('methodology')" class="text-sm font-semibold text-postman hover:text-postman-hover transition-colors flex items-center gap-1 cursor-pointer">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Methodology
+                    </button>
+                    <div class="text-sm text-gray-500 hidden sm:block pl-5 border-l border-gray-200">Sales Engineering Tool</div>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-grow max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- Left Column: Inputs (Wizard) -->
+            <div class="lg:col-span-5 xl:col-span-4 space-y-6">
+
+                <!-- Step 1: Select Audience -->
+                <section class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-gray-900">1. Select Audience</h2>
+                        <span class="px-2 py-1 bg-gray-100 text-xs font-medium text-gray-600 rounded">Dynamic Logic</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <label class="cursor-pointer relative">
+                            <input type="checkbox" name="persona" value="platform" class="peer sr-only" onchange="calculate()">
+                            <div class="p-4 rounded-lg border-2 border-gray-100 hover:border-gray-200 peer-checked:border-postman peer-checked:bg-postman-bg transition-all h-full">
+                                <div class="font-medium text-gray-900 peer-checked:text-postman mb-1">Platform Eng.</div>
+                                <div class="text-xs text-gray-500">Governance & Security</div>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer relative">
+                            <input type="checkbox" name="persona" value="product" class="peer sr-only" onchange="calculate()">
+                            <div class="p-4 rounded-lg border-2 border-gray-100 hover:border-gray-200 peer-checked:border-postman peer-checked:bg-postman-bg transition-all h-full">
+                                <div class="font-medium text-gray-900 peer-checked:text-postman mb-1">Product Eng.</div>
+                                <div class="text-xs text-gray-500">Velocity & Reuse</div>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer relative">
+                            <input type="checkbox" name="persona" value="qe" class="peer sr-only" onchange="calculate()">
+                            <div class="p-4 rounded-lg border-2 border-gray-100 hover:border-gray-200 peer-checked:border-postman peer-checked:bg-postman-bg transition-all h-full">
+                                <div class="font-medium text-gray-900 peer-checked:text-postman mb-1">Head of QE</div>
+                                <div class="text-xs text-gray-500">Quality & Defects</div>
+                            </div>
+                        </label>
+                    </div>
+                </section>
+
+                <!-- Step 2: Global Variables -->
+                <section class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">2. Organization Metrics</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div id="global-devs" class="input-section-highlightable p-3 -mx-3 rounded-xl relative" onmouseenter="setHighlightInput('global-devs')" onmouseleave="clearHighlight()">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Total Developers</label>
+                            <input type="number" id="numDevs" value="50" min="1" class="w-full border-gray-300 rounded-md shadow-sm focus:border-postman focus:ring-postman" oninput="calculate()">
+                        </div>
+                        <div id="global-rate" class="input-section-highlightable p-3 -mx-3 rounded-xl relative" onmouseenter="setHighlightInput('global-rate')" onmouseleave="clearHighlight()">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Avg Hourly Cost ($)</label>
+                            <input type="number" id="hourlyRate" value="80" min="1" class="w-full border-gray-300 rounded-md shadow-sm focus:border-postman focus:ring-postman" oninput="calculate()">
+                        </div>
+                        <div id="global-hires" class="input-section-highlightable p-3 -mx-3 rounded-xl relative" onmouseenter="setHighlightInput('global-hires')" onmouseleave="clearHighlight()">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">New Hires per Year</label>
+                            <input type="number" id="numNewHires" value="10" min="0" class="w-full border-gray-300 rounded-md shadow-sm focus:border-postman focus:ring-postman" oninput="calculate()">
+                        </div>
+                        <div id="global-releases" class="input-section-highlightable p-3 -mx-3 rounded-xl relative" onmouseenter="setHighlightInput('global-releases')" onmouseleave="clearHighlight()">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Annual Releases</label>
+                            <input type="number" id="annualReleases" value="24" min="1" class="w-full border-gray-300 rounded-md shadow-sm focus:border-postman focus:ring-postman" oninput="calculate()">
+                        </div>
+                        <!-- Hidden Seat Cost Input (Default 588) -->
+                        <input type="hidden" id="seatCost" value="588">
+                    </div>
+                </section>
+
+                <!-- Step 3: Pain Points -->
+                <section id="step3-section" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 input-section hidden-section">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">3. Discovery: Pain Points</h2>
+                    
+                    <!-- 1. Productivity -->
+                    <div id="section-productivity-wrapper" class="input-section hidden-section p-2 -mx-2" data-audience="product,platform">
+                        <div id="section-productivity" class="input-section-highlightable p-3 rounded-xl relative" onmouseenter="setHighlightInput('section-productivity')" onmouseleave="clearHighlight()">
+                            <div class="flex justify-between mb-2">
+                                <label class="text-sm font-medium text-gray-700">Hours lost per week (env setup, debugging)</label>
+                                <span class="text-sm font-bold text-postman" id="prodHoursDisplay">3 hrs</span>
+                            </div>
+                            <input type="range" id="prodHours" min="0" max="10" step="0.5" value="3" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" oninput="updateRangeDisplay('prodHours', 'prodHoursDisplay', ' hrs'); calculate()">
+                            <p class="text-xs text-gray-500 mt-1">Efficiency Baseline</p>
+                        </div>
+                        <hr class="border-gray-100 my-2 mx-2">
+                    </div>
+
+                    <!-- 2. Onboarding -->
+                    <div id="section-onboarding-wrapper" class="input-section hidden-section p-2 -mx-2" data-audience="product">
+                        <div id="section-onboarding" class="input-section-highlightable p-3 rounded-xl relative" onmouseenter="setHighlightInput('section-onboarding')" onmouseleave="clearHighlight()">
+                            <div class="flex justify-between mb-2">
+                                <label class="text-sm font-medium text-gray-700">Ramp Up Time (Weeks)</label>
+                                <span class="text-sm font-bold text-postman" id="rampWeeksDisplay">4 wks</span>
+                            </div>
+                            <input type="range" id="rampWeeks" min="1" max="12" step="1" value="4" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" oninput="updateRangeDisplay('rampWeeks', 'rampWeeksDisplay', ' wks'); calculate()">
+                            <p class="text-xs text-gray-500 mt-1">Postman reduces ramp time by 40%</p>
+                        </div>
+                        <hr class="border-gray-100 my-2 mx-2">
+                    </div>
+
+                    <!-- 3. API Design Acceleration -->
+                    <div id="section-api-design-wrapper" class="input-section hidden-section p-2 -mx-2" data-audience="product">
+                        <div id="section-api-design" class="input-section-highlightable p-3 rounded-xl relative" onmouseenter="setHighlightInput('section-api-design')" onmouseleave="clearHighlight()">
+                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">API Design Acceleration</h3>
+                            <div class="grid grid-cols-2 gap-4 mb-2">
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">Net New APIs/Year</label>
+                                    <input type="number" id="netNewApis" value="50" class="w-full text-sm border-gray-300 rounded" oninput="calculate()">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">Hours per API (Design)</label>
+                                    <input type="number" id="hoursPerApi" value="40" class="w-full text-sm border-gray-300 rounded" oninput="calculate()">
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500">25% reduction in design/test time</p>
+                        </div>
+                        <hr class="border-gray-100 my-2 mx-2">
+                    </div>
+
+                    <!-- 4. Support Center Cost Reduction -->
+                    <div id="section-support-wrapper" class="input-section hidden-section p-2 -mx-2" data-audience="product">
+                        <div id="section-support" class="input-section-highlightable p-3 rounded-xl relative" onmouseenter="setHighlightInput('section-support')" onmouseleave="clearHighlight()">
+                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Support Center Savings</h3>
+                            <div class="grid grid-cols-2 gap-4 mb-2">
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">Bug Tickets/Year</label>
+                                    <input type="number" id="bugTickets" value="5000" class="w-full text-sm border-gray-300 rounded" oninput="calculate()">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">Cost per Ticket ($)</label>
+                                    <input type="number" id="costPerTicket" value="8" class="w-full text-sm border-gray-300 rounded" oninput="calculate()">
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500">30% decrease in bug-related tickets</p>
+                        </div>
+                        <hr class="border-gray-100 my-2 mx-2">
+                    </div>
+
+                    <!-- 5. Rework/Duplication -->
+                    <div id="section-duplication-wrapper" class="input-section hidden-section p-2 -mx-2" data-audience="product">
+                        <div id="section-duplication" class="input-section-highlightable p-3 rounded-xl relative" onmouseenter="setHighlightInput('section-duplication')" onmouseleave="clearHighlight()">
+                            <div class="flex justify-between mb-2">
+                                <label class="text-sm font-medium text-gray-700">Redundant APIs/Projects built per year</label>
+                                <span class="text-sm font-bold text-postman" id="dupProjectsDisplay">1</span>
+                            </div>
+                            <input type="range" id="dupProjects" min="0" max="10" step="1" value="1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" oninput="updateRangeDisplay('dupProjects', 'dupProjectsDisplay', ''); calculate()">
+                            <p class="text-xs text-gray-500 mt-1">Cost of building redundant code</p>
+                        </div>
+                        <hr class="border-gray-100 my-2 mx-2">
+                    </div>
+
+                    <!-- NEW 6. Cost of Delay Avoided (Product) -->
+                    <div id="section-cost-delay-wrapper" class="input-section hidden-section p-2 -mx-2" data-audience="product">
+                        <div id="section-cost-delay" class="input-section-highlightable p-3 rounded-xl relative" onmouseenter="setHighlightInput('section-cost-delay')" onmouseleave="clearHighlight()">
+                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Cost of Delay (Revenue Impact)</h3>
+                            <div class="grid grid-cols-2 gap-4 mb-2">
+                                <div class="col-span-2">
+                                    <label class="text-xs text-gray-600 block mb-1">Weekly Revenue Impact ($)</label>
+                                    <input type="number" id="revImpact" value="10000" class="w-full text-sm border-gray-300 rounded shadow-sm focus:border-postman focus:ring-postman" oninput="calculate()">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">Delayed Releases/Yr</label>
+                                    <input type="number" id="delayReleases" value="5" class="w-full text-sm border-gray-300 rounded shadow-sm focus:border-postman focus:ring-postman" oninput="calculate()">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">Avg Delay (Weeks)</label>
+                                    <input type="number" id="delayWeeks" value="2" class="w-full text-sm border-gray-300 rounded shadow-sm focus:border-postman focus:ring-postman" oninput="calculate()">
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500 italic mt-1">Assumes Postman resolves 50% of API-related delays.</p>
+                        </div>
+                        <hr class="border-gray-100 my-2 mx-2">
+                    </div>
+
+                    <!-- 7. QA Engineer FTE Efficiencies -->
+                    <div id="section-qa-fte-wrapper" class="input-section hidden-section p-2 -mx-2" data-audience="qe">
+                        <div id="section-qa-fte" class="input-section-highlightable p-3 rounded-xl relative" onmouseenter="setHighlightInput('section-qa-fte')" onmouseleave="clearHighlight()">
+                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">QA Engineer FTE Efficiencies</h3>
+                            <div class="grid grid-cols-2 gap-4 mb-2">
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">Total QA Engineers</label>
+                                    <input type="number" id="numQaEng" value="5" class="w-full text-sm border-gray-300 rounded" oninput="calculate()">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">Avg QA Salary ($)</label>
+                                    <input type="number" id="qaSalary" value="120000" class="w-full text-sm border-gray-300 rounded" oninput="calculate()">
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500">65% efficiency gain via automation</p>
+                        </div>
+                        <hr class="border-gray-100 my-2 mx-2">
+                    </div>
+
+                    <!-- 8. Governance -->
+                    <div id="section-governance-wrapper" class="input-section hidden-section p-2 -mx-2" data-audience="platform">
+                        <div id="section-governance" class="input-section-highlightable p-3 rounded-xl relative" onmouseenter="setHighlightInput('section-governance')" onmouseleave="clearHighlight()">
+                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Governance Efficiency</h3>
+                            <div class="grid grid-cols-2 gap-4 mb-2">
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">PRs Reviewed/Year</label>
+                                    <input type="number" id="prsReviewed" value="500" class="w-full text-sm border-gray-300 rounded" oninput="calculate()">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">Mins per Review</label>
+                                    <input type="number" id="minsReview" value="30" class="w-full text-sm border-gray-300 rounded" oninput="calculate()">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">Architect Rate (x)</label>
+                                    <input type="number" id="archMultiplier" value="1.25" step="0.05" class="w-full text-sm border-gray-300 rounded" oninput="calculate()">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">Auto. Savings (%)</label>
+                                    <input type="number" id="govSavings" value="90" class="w-full text-sm border-gray-300 rounded" oninput="calculate()">
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500">Automating API linting & styling</p>
+                        </div>
+                        <hr class="border-gray-100 my-2 mx-2">
+                    </div>
+
+                    <!-- 9. Outage & Reliability Savings -->
+                    <div id="section-outage-wrapper" class="input-section hidden-section p-2 -mx-2" data-audience="platform">
+                        <div id="section-outage" class="input-section-highlightable p-3 rounded-xl relative" onmouseenter="setHighlightInput('section-outage')" onmouseleave="clearHighlight()">
+                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Outage & Reliability Savings</h3>
+                            <div class="grid grid-cols-2 gap-4 mb-2">
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">Outages/Year</label>
+                                    <input type="number" id="numOutages" value="4" class="w-full text-sm border-gray-300 rounded" oninput="calculate()">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">Cost per Outage ($)</label>
+                                    <input type="number" id="costPerOutage" value="200000" class="w-full text-sm border-gray-300 rounded" oninput="calculate()">
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500">30% reduction in outages</p>
+                        </div>
+                        <hr class="border-gray-100 my-2 mx-2">
+                    </div>
+
+                    <!-- 10. Internal Integration -->
+                    <div id="section-integration-wrapper" class="input-section hidden-section p-2 -mx-2" data-audience="platform,product">
+                        <div id="section-integration" class="input-section-highlightable p-3 rounded-xl relative" onmouseenter="setHighlightInput('section-integration')" onmouseleave="clearHighlight()">
+                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Internal Integration Velocity</h3>
+                            <div class="grid grid-cols-2 gap-4 mb-2">
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">Integrations/Year</label>
+                                    <input type="number" id="intCount" value="20" class="w-full text-sm border-gray-300 rounded" oninput="calculate()">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600 block mb-1">Current TTFC (Hours)</label>
+                                    <input type="number" id="ttfcHours" value="4" class="w-full text-sm border-gray-300 rounded" oninput="calculate()">
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500">Time-to-First-Call reduction</p>
+                        </div>
+                        <hr class="border-gray-100 my-2 mx-2">
+                    </div>
+
+                    <!-- 11. Testing -->
+                    <div id="section-testing-wrapper" class="input-section hidden-section p-2 -mx-2" data-audience="qe">
+                        <div id="section-testing" class="input-section-highlightable p-3 rounded-xl relative" onmouseenter="setHighlightInput('section-testing')" onmouseleave="clearHighlight()">
+                            <div class="flex justify-between mb-2">
+                                <label class="text-sm font-medium text-gray-700">Regression Cycle (Hours)</label>
+                                <span class="text-sm font-bold text-postman" id="regHoursDisplay">20 hrs</span>
+                            </div>
+                            <input type="range" id="regHours" min="0" max="100" step="5" value="20" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" oninput="updateRangeDisplay('regHours', 'regHoursDisplay', ' hrs'); calculate()">
+                            <p class="text-xs text-gray-500 mt-1">95% reduction via automation</p>
+                        </div>
+                        <hr class="border-gray-100 my-2 mx-2">
+                    </div>
+
+                    <!-- 12. Defects -->
+                    <div id="section-defects-wrapper" class="input-section hidden-section p-2 -mx-2" data-audience="qe">
+                        <div id="section-defects" class="input-section-highlightable p-3 rounded-xl relative" onmouseenter="setHighlightInput('section-defects')" onmouseleave="clearHighlight()">
+                            <div class="flex justify-between mb-2">
+                                <label class="text-sm font-medium text-gray-700">Critical Bugs in Prod (Annual)</label>
+                                <span class="text-sm font-bold text-postman" id="prodBugsDisplay">2</span>
+                            </div>
+                            <input type="range" id="prodBugs" min="0" max="20" step="1" value="2" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" oninput="updateRangeDisplay('prodBugs', 'prodBugsDisplay', ''); calculate()">
+                            <p class="text-xs text-gray-500 mt-1">Cost of fixing in Prod vs Dev</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Column: The Money Slide (Output) -->
+            <div class="lg:col-span-7 xl:col-span-8">
+                <div class="sticky top-24">
+                    <div class="bg-gray-900 text-white rounded-xl shadow-2xl overflow-hidden">
+                        <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800">
+                            <h3 class="font-semibold text-base">Executive Business Value Summary</h3>
+                            <button onclick="copyToClipboard()" class="text-xs bg-postman hover:bg-postman-hover text-white px-3 py-1.5 rounded transition-colors flex items-center gap-1 cursor-pointer">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                </svg>
+                                Copy Output
+                            </button>
+                        </div>
+                        
+                        <div class="overflow-x-auto bg-gray-900 p-2">
+                            <div id="slideContent">
+                                <table border="0" cellpadding="0" cellspacing="0" style="width: 950px; min-width: 950px; background-color: #111827; color: #ffffff; font-family: sans-serif; border-collapse: collapse;">
+                                    <tr>
+                                        <td colspan="3" style="padding: 30px; border-left: 6px solid #FF6C37; background-color: #111827;">
+                                            <div style="font-size: 24px; font-weight: bold; color: white; line-height: 1.3; font-family: 'Inter', sans-serif;">
+                                                "Postman Enterprise will drive <span style="color: #FF6C37;" id="outTotalSavings">$0</span> in annual efficiency gains while reducing security risk."
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <!-- Strategic Outcomes (Column 1) -->
+                                        <td rowspan="2" style="width: 350px; vertical-align: top; padding: 24px 20px 40px 30px; border-right: 1px solid #374151; background-color: #111827;">
+                                            <h4 style="color: #9CA3AF; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; margin: 0 0 16px 0;">1. Strategic Outcomes</h4>
+                                            <div style="color: #E5E7EB; font-size: 16px; line-height: 1.6;" id="strategicBullets"></div>
+                                        </td>
+                                        
+                                        <!-- Operational Impact (Column 2 - Left) -->
+                                        <td style="width: 300px; vertical-align: top; padding: 24px 10px 24px 30px; background-color: #111827;">
+                                            <h4 style="color: #9CA3AF; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; margin: 0 0 16px 0;">2. Operational Impact</h4>
+                                            <div id="opImpactLeft"></div>
+                                        </td>
+
+                                        <!-- Operational Impact (Column 3 - Right) -->
+                                        <td style="width: 300px; vertical-align: top; padding: 24px 30px 24px 10px; background-color: #111827;">
+                                            <div style="height: 28px;"></div> <!-- Spacer to align with header -->
+                                            <div id="opImpactRight"></div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <!-- ROI Summary (Spans Columns 2 & 3) -->
+                                        <td colspan="2" style="padding: 0 30px 30px 30px; background-color: #111827; vertical-align: bottom;">
+                                            <div style="background-color: #1F2937; padding: 20px; border-radius: 8px; border: 1px solid #374151;">
+                                                <h4 style="color: #9CA3AF; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; margin: 0 0 8px 0;">3. ROI Summary</h4>
+                                                <p style="margin: 0; font-size: 16px; color: #E5E7EB; line-height: 1.5;">
+                                                    "By investing <span style="color: #ffffff; font-weight: 700;" id="outCost">$0</span>, the team creates <span style="color: #ffffff; font-weight: 700;" id="outTotalSavingsText">$0</span> in value (<span style="color: #FF6C37; font-weight: 700; font-size: 18px;" id="outROI">0x</span> ROI)."
+                                                </p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="toast" class="opacity-0 transition-opacity duration-300 fixed bottom-5 right-5 bg-gray-900 text-white px-4 py-2 rounded shadow-lg flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Copied to clipboard!
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+
+    <!-- ========================================== -->
+    <!-- VIEW 2: METHODOLOGY (Initially Hidden)     -->
+    <!-- ========================================== -->
+    <div id="view-methodology" class="view-hidden flex-col min-h-screen w-full">
+        <!-- Header -->
+        <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+            <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-postman rounded-full flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                        </svg>
+                    </div>
+                    <h1 class="text-xl font-bold text-gray-900 tracking-tight">Postman <span class="text-postman">BVA Methodology</span></h1>
+                </div>
+                <div class="flex items-center gap-6">
+                    <!-- Feedback Button -->
+                    <button onclick="showFeedbackModal()" class="text-sm font-semibold text-gray-600 hover:text-postman transition-colors flex items-center gap-1.5 cursor-pointer bg-gray-100 px-3 py-1.5 rounded-md hover:bg-postman-bg border border-gray-200">
+                        💡 Feedback
+                    </button>
+
+                    <!-- Switch to Calculator Button -->
+                    <button onclick="toggleView('calculator')" class="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-postman transition-colors cursor-pointer pl-5 border-l border-gray-200">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        Back to Calculator
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-12 w-full">
+            <!-- Header Section -->
+            <div class="text-center">
+                <h2 class="text-3xl font-extrabold text-gray-900">Complete ROI Framework, Logic, and Formula</h2>
+                <p class="mt-4 text-lg text-gray-500">A detailed breakdown of the 15 formulas and logic driving the Business Value Assessment.</p>
+            </div>
+
+            <!-- Section: Global Baseline Parameters -->
+            <section class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="px-6 py-5 border-b border-gray-100 bg-gray-50">
+                    <h3 class="text-lg font-bold text-gray-900">Global Baseline Parameters</h3>
+                </div>
+                <div class="p-6">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead>
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Parameter</th>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Default</th>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Logic Mapping</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 bg-white">
+                                <tr>
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900">Total Developers</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500">50</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500">Scales all Productivity Metrics</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900">Avg Hourly Cost ($)</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500">$80</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500">Blended Rate for Labor Value</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900">New Hires / Year</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500">10</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500">Drives Onboarding & IT Math</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900">Annual Releases</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500">24</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500">Frequency of QA Regression</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900">Seat Cost</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500">$588</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500">Platform License Overhead ($49/mo)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-4 p-4 bg-postman-bg text-postman rounded-lg text-sm border border-[#ffdbcc]">
+                        <span class="font-bold">Methodology Note:</span> These constants represent the "economic engine" of the calculator. Any change here propagates across all 15 formulas to ensure a consistent, auditable financial model.
+                    </div>
+                </div>
+            </section>
+
+            <!-- Formulas Grid -->
+            <div class="grid grid-cols-1 gap-8">
+                <!-- Platform Engineering -->
+                <section class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="px-6 py-5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+                        <h3 class="text-lg font-bold text-gray-900">Platform Engineering Savings (6)</h3>
+                    </div>
+                    <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                            <h4 class="font-bold text-sm text-gray-900 mb-2">Productivity</h4>
+                            <div class="bg-white p-3 rounded border border-gray-200 mb-2 overflow-x-auto">
+                                $$ Devs \times (Saved \times 0.5) \times 52 \times Rate $$
+                            </div>
+                            <p class="text-xs text-gray-600">Lost time recovery in setup & debugging.</p>
+                        </div>
+                        <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                            <h4 class="font-bold text-sm text-gray-900 mb-2">Governance</h4>
+                            <div class="bg-white p-3 rounded border border-gray-200 mb-2 overflow-x-auto">
+                                $$ PRs \times \frac{Mins}{60} \times ArchRate \times 0.9 $$
+                            </div>
+                            <p class="text-xs text-gray-600">90% automation of manual API reviews.</p>
+                        </div>
+                        <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                            <h4 class="font-bold text-sm text-gray-900 mb-2">Outages</h4>
+                            <div class="bg-white p-3 rounded border border-gray-200 mb-2 overflow-x-auto">
+                                $$ Outages \times Cost \times 0.3 \times 0.5 $$
+                            </div>
+                            <p class="text-xs text-gray-600">30% reduction with 50% attribution.</p>
+                        </div>
+                        <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                            <h4 class="font-bold text-sm text-gray-900 mb-2">Integration</h4>
+                            <div class="bg-white p-3 rounded border border-gray-200 mb-2 overflow-x-auto">
+                                $$ Int \times (TTFC - 0.25) \times Rate $$
+                            </div>
+                            <p class="text-xs text-gray-600">Target TTFC reduced to 15 minutes.</p>
+                        </div>
+                        <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                            <h4 class="font-bold text-sm text-gray-900 mb-2">Provisioning</h4>
+                            <div class="bg-white p-3 rounded border border-gray-200 mb-2 overflow-x-auto">
+                                $$ Hires \times 2h \times ITRate $$
+                            </div>
+                            <p class="text-xs text-gray-600">SCIM automation saves 2h per hire.</p>
+                        </div>
+                        <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                            <h4 class="font-bold text-sm text-gray-900 mb-2">Risk</h4>
+                            <div class="bg-white p-3 rounded border border-gray-200 mb-2 overflow-x-auto">
+                                $$ \$4.45M \times 0.005 $$
+                            </div>
+                            <p class="text-xs text-gray-600">0.5% breach risk reduction (IBM).</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Product Engineering -->
+                <section class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="px-6 py-5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                        <h3 class="text-lg font-bold text-gray-900">Product Engineering Savings</h3>
+                    </div>
+                    <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                            <h4 class="font-bold text-sm text-gray-900 mb-2">API Design Accel.</h4>
+                            <div class="bg-white p-3 rounded border border-gray-200 mb-2 overflow-x-auto">
+                                $$ APIs \times Hrs \times 0.25 \times Rate \times 0.5 $$
+                            </div>
+                            <p class="text-xs text-gray-600">Standardized templates reduce design cycles by 25%.</p>
+                        </div>
+                        <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                            <h4 class="font-bold text-sm text-gray-900 mb-2">Onboarding Velocity</h4>
+                            <div class="bg-white p-3 rounded border border-gray-200 mb-2 overflow-x-auto">
+                                $$ Hires \times (Ramp \times 0.4) \times 40 \times Rate $$
+                            </div>
+                            <p class="text-xs text-gray-600">Collections speed up developer ramp-up by 40%.</p>
+                        </div>
+                        <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                            <h4 class="font-bold text-sm text-gray-900 mb-2">Avoided Rework</h4>
+                            <div class="bg-white p-3 rounded border border-gray-200 mb-2 overflow-x-auto">
+                                $$ Proj \times 3Devs \times 3Mo \times Rate $$
+                            </div>
+                            <p class="text-xs text-gray-600">Discovery via PIN prevents redundant 3-month project cycles.</p>
+                        </div>
+                        <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                            <h4 class="font-bold text-sm text-gray-900 mb-2">Support Cost Reduction</h4>
+                            <div class="bg-white p-3 rounded border border-gray-200 mb-2 overflow-x-auto">
+                                $$ Tickets \times Cost \times 0.30 $$
+                            </div>
+                            <p class="text-xs text-gray-600">30% ticket decrease. Product engineering models also share Productivity & Integration.</p>
+                        </div>
+                        <!-- NEW: Cost of Delay -->
+                        <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                            <h4 class="font-bold text-sm text-gray-900 mb-2">Cost of Delay</h4>
+                            <div class="bg-white p-3 rounded border border-gray-200 mb-2 overflow-x-auto">
+                                $$ Impact \times Rel \times Weeks \times 0.5 $$
+                            </div>
+                            <p class="text-xs text-gray-600">Protected revenue via accelerated delivery.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Head of QE (COE) -->
+                <section class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="px-6 py-5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full bg-purple-500"></div>
+                        <h3 class="text-lg font-bold text-gray-900">Head of QE (COE) Savings (3)</h3>
+                    </div>
+                    <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                            <h4 class="font-bold text-sm text-gray-900 mb-2">FTE Efficiencies</h4>
+                            <div class="bg-white p-3 rounded border border-gray-200 mb-2 overflow-x-auto">
+                                $$ QA\_Engs \times Salary \times 65\% \times 50\% $$
+                            </div>
+                            <p class="text-xs text-gray-600">Shifting labor from manual to automated API testing (Forrester).</p>
+                        </div>
+                        <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                            <h4 class="font-bold text-sm text-gray-900 mb-2">Test Compression</h4>
+                            <div class="bg-white p-3 rounded border border-gray-200 mb-2 overflow-x-auto">
+                                $$ Rel \times Cyc\_Hrs \times 95\% \times Rate $$
+                            </div>
+                            <p class="text-xs text-gray-600">95% reduction in regression time per release cycle.</p>
+                        </div>
+                        <div class="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                            <h4 class="font-bold text-sm text-gray-900 mb-2">Defect Remediation</h4>
+                            <div class="bg-white p-3 rounded border border-gray-200 mb-2 overflow-x-auto">
+                                $$ Prod\_Defects \times 100h \times Rate $$
+                            </div>
+                            <p class="text-xs text-gray-600">Avoiding the 100-hour overhead penalty for production bugs.</p>
+                        </div>
+                        <div class="border border-transparent rounded-lg p-4 flex flex-col justify-center">
+                            <h4 class="font-bold text-sm text-gray-900 mb-1">Strategic Value</h4>
+                            <p class="text-xs text-gray-600 italic leading-relaxed">
+                                Quality Engineering focuses on "Shifting-Left"—finding bugs earlier in the lifecycle to reduce technical debt and accelerate release velocity.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Section: Appendix (Logic Descriptions) -->
+            <section class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-8">
+                <div class="px-6 py-5 border-b border-gray-100 bg-gray-900">
+                    <h3 class="text-lg font-bold text-white">Appendix: Detailed Breakdown & Logic</h3>
+                </div>
+                <div class="p-6 space-y-8">
+                    
+                    <div>
+                        <h4 class="text-sm font-bold text-postman uppercase tracking-wider mb-3 border-b pb-2">Productivity & Design Logic</h4>
+                        <ul class="space-y-3 text-sm text-gray-700">
+                            <li><strong class="text-gray-900">Developer Productivity:</strong> 50% "Capture Rate" is applied to ensure savings are grounded in reality—not all saved time is reinvested in coding.</li>
+                            <li><strong class="text-gray-900">API Design Acceleration:</strong> Assumes a 25% cycle time reduction (Forrester) specifically for the Design and Testing phases.</li>
+                            <li><strong class="text-gray-900">Cost of Delay:</strong> This is a CFO-level metric. 43% of API-first organizations generate 25%+ of total revenue from APIs. We assume Postman's accelerated delivery reduces these delays by 50%.</li>
+                            <li><strong class="text-gray-900">Hourly Rate Blending:</strong> Standard blended rate of $80/hr includes benefits and overhead for a full-stack engineer.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <h4 class="text-sm font-bold text-postman uppercase tracking-wider mb-3 border-b pb-2">Integration & Governance</h4>
+                        <ul class="space-y-3 text-sm text-gray-700">
+                            <li><strong class="text-gray-900">Integration (0.25 Constant):</strong> Represents a 15-minute target Time-to-First-Call (TTFC). In legacy systems, this often takes 4+ hours of discovery and access requests.</li>
+                            <li><strong class="text-gray-900">Architect Multiplier (1.25):</strong> Governance reviews are typically performed by senior personnel. We multiply the base rate by 1.25 to reflect this seniority.</li>
+                            <li><strong class="text-gray-900">Automation Savings (90%):</strong> Spectral linting and governance rules eliminate the need for manual "eyeball" reviews for most standard PRs.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <h4 class="text-sm font-bold text-postman uppercase tracking-wider mb-3 border-b pb-2">Reliability & Risk</h4>
+                        <ul class="space-y-3 text-sm text-gray-700">
+                            <li><strong class="text-gray-900">Outage Reduction (30%):</strong> Forrester benchmark for Year 1 reliability gains. We apply a 50% attribution factor to Postman's specific role in this outcome.</li>
+                            <li><strong class="text-gray-900">Risk Mitigation ($4.45M):</strong> Derived from IBM's Cost of a Data Breach report. A conservative 0.5% risk reduction factor is attributed to improved API visibility.</li>
+                            <li><strong class="text-gray-900">Support Cost Reduction:</strong> Better testing directly decreases the volume of integration-related bug tickets reaching the support desk by 30%.</li>
+                            <li><strong class="text-gray-900">IT Provisioning (0.75 Rate):</strong> Assumes IT Admin labor costs 75% of a standard developer's blended rate.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <h4 class="text-sm font-bold text-postman uppercase tracking-wider mb-3 border-b pb-2">Scaling & QE Logic</h4>
+                        <ul class="space-y-3 text-sm text-gray-700">
+                            <li><strong class="text-gray-900">Ramp-Up (40%):</strong> Based on Customer Benchmarks. Integrated collections allow new hires to execute their first API call on Day 1.</li>
+                            <li><strong class="text-gray-900">QA FTE Efficiency (65%):</strong> Shifting manual effort to automated test suites allows for significant headcount reinvestment.</li>
+                            <li><strong class="text-gray-900">Test Compression (95%):</strong> Compressing manual regression days into minutes via automated collection runners.</li>
+                            <li><strong class="text-gray-900">Production Defect Penalty (100h):</strong> Fixes in production involve triage, comms, and rollbacks, which cost 100+ hours more than dev fixes.</li>
+                        </ul>
+                    </div>
+
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // ==========================================
+        // UI Navigation Logic
+        // ==========================================
+        function toggleView(view) {
+            const calcView = document.getElementById('view-calculator');
+            const methView = document.getElementById('view-methodology');
+            
+            if (view === 'methodology') {
+                calcView.classList.remove('view-active');
+                calcView.classList.add('view-hidden');
+                
+                methView.classList.remove('view-hidden');
+                methView.classList.add('view-active');
+            } else {
+                methView.classList.remove('view-active');
+                methView.classList.add('view-hidden');
+                
+                calcView.classList.remove('view-hidden');
+                calcView.classList.add('view-active');
+            }
+            window.scrollTo(0, 0);
+        }
+
+        // ==========================================
+        // Calculator Engine Data
+        // ==========================================
+        const formatMoney = (amount) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
+        const updateRangeDisplay = (id, display, suffix) => document.getElementById(display).innerText = document.getElementById(id).value + suffix;
+
+        const formulaData = {
+            productivity: { title: "Developer Productivity", formula: "Devs × (Hours Saved × 0.50) × 52 × Rate", desc: "Assumption: A conservative 50% 'Realization Factor' is applied, assuming not every saved hour is immediately reinvested in coding." },
+            apiDesign: { title: "API Design Acceleration", formula: "Net New APIs × Hours per API × 25% Reduction × Rate × 50%", desc: "Assumption: Forrester assumes a 25% reduction in design/testing time in Year 1, with a 50% Productivity Capture rate (only half the saved time converts directly to dollar value)." },
+            onboarding: { title: "Onboarding Velocity", formula: "New Hires × (Ramp Weeks × 40%) × 40hrs × Rate", desc: "Assumption: Postman reduces new hire ramp time by 40% (Source: Customer Benchmarks)." },
+            rework: { title: "Avoided Rework", formula: "Duplicate Projects × 3 Devs × 3 Months × 160hrs × Rate", desc: "Assumption: An average redundant project involves 3 developers working for 3 months (Source: ROI Blueprint)." },
+            costDelay: { title: "Cost of Delay Avoided", formula: "Weekly Revenue Impact × Delayed Releases × Delay Weeks × 50%", desc: "Assumption: This is a CFO-level metric. 43% of API-first organizations generate 25%+ of total revenue from APIs. We assume Postman's accelerated delivery reduces these delays by 50%." },
+            governance: { title: "Governance Efficiency", formula: "PRs × (Mins/60) × (Rate × ArchitectMult) × Savings%", desc: "Assumption: Architect hourly rate is 1.25x standard dev rate. Automation removes 90% of manual review effort." },
+            provisioning: { title: "IT Provisioning", formula: "New Hires × 2 Hours × (Rate × 0.75)", desc: "Assumption: IT Admin rate is 75% of Dev rate. Automated SCIM/SSO provisioning saves 2 hours of IT ticket time per hire." },
+            integration: { title: "Internal Integration", formula: "Integrations × (TTFC - 0.25) × Rate", desc: "Assumption: Postman Private API Network reduces Time-to-First-Call (TTFC) to 15 minutes (0.25 hours)." },
+            qaFte: { title: "QA Engineer FTE Efficiencies", formula: "QA Engineers × Annual Salary × 65% Gain × 50%", desc: "Assumption: Forrester assumes a 65% efficiency gain in Year 1 by shifting to automated testing, applying a 50% Productivity Capture rate." },
+            testing: { title: "Test Compression", formula: "Releases × Cycle Hours × 95% × Rate", desc: "Assumption: API automation reduces manual regression testing cycles by 95% (Source: Customer Benchmarks)." },
+            defects: { title: "Defect Remediation", formula: "Prod Defects × 100 Hours × Rate", desc: "Assumption: Remediation of a defect found in production takes 100 hours longer than if found in development." },
+            outage: { title: "Outage & Reliability Savings", formula: "Outages × Cost per Outage × 30% Reduction × 50%", desc: "Assumption: Forrester assumes a 30% reduction in outages in Year 1, and assigns a 50% Attribution Factor specifically to Postman's impact." },
+            support: { title: "Support Center Cost Reduction", formula: "Bug Tickets × Cost per Ticket × 30% Decrease", desc: "Assumption: Better testing reduces the volume of bug-related tickets hitting support. Forrester assumes a 30% decrease in Year 1." },
+            security: { title: "Risk Mitigation", formula: "$4,450,000 × 0.005", desc: "Assumption: Based on IBM Cost of Data Breach Report ($4.45M average) with a conservative 0.5% risk reduction attribution to API governance." }
+        };
+
+        // ==========================================
+        // Feedback Form & Table Logic
+        // ==========================================
+        function showFeedbackModal() {
+            document.getElementById('feedbackModal').classList.remove('hidden');
+        }
+        function closeFeedbackModal() {
+            document.getElementById('feedbackModal').classList.add('hidden');
+        }
+        document.getElementById('feedbackModal').addEventListener('click', e => { 
+            if(e.target === document.getElementById('feedbackModal')) closeFeedbackModal(); 
+        });
+
+        // 1. Auto-Populate the 3-Column HTML Table
+        function populateFeedbackTable() {
+            const tbody = document.getElementById('feedback-table-body');
+            tbody.innerHTML = '';
+            
+            Object.keys(formulaData).forEach(key => {
+                const item = formulaData[key];
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-4 py-3 text-sm text-gray-900 font-medium border-t border-gray-100">${item.title}</td>
+                    <td class="px-4 py-3 text-sm border-t border-gray-100">
+                        <select name="action_${key}" class="text-sm border-gray-300 rounded focus:ring-postman focus:border-postman w-full" onchange="toggleReasoning('${key}', this.value)">
+                            <option value="">-- No Action --</option>
+                            <option value="Modify">Modify</option>
+                            <option value="Delete">Delete</option>
+                        </select>
+                    </td>
+                    <td class="px-4 py-3 text-sm border-t border-gray-100">
+                        <input type="text" id="reason_${key}" name="reason_${key}" disabled class="w-full text-sm border-gray-300 rounded shadow-sm bg-gray-100 text-gray-400 cursor-not-allowed transition-colors" placeholder="Select action first...">
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 2. Lock/Unlock the Reasoning field based on Dropdown
+        function toggleReasoning(key, val) {
+            const input = document.getElementById(`reason_${key}`);
+            if (val) {
+                input.disabled = false;
+                input.classList.remove('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
+                input.classList.add('bg-white', 'text-gray-900');
+                input.placeholder = "Explain your reasoning here...";
+                input.required = true;
+            } else {
+                input.disabled = true;
+                input.classList.add('bg-gray-100', 'text-gray-400', 'cursor-not-allowed');
+                input.classList.remove('bg-white', 'text-gray-900');
+                input.placeholder = "Select action first...";
+                input.required = false;
+                input.value = ""; // Clear out old data
+            }
+        }
+
+        // 3. Handle the Submit Event and Build JSON Payload
+        function handleFeedbackSubmit(e) {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+            
+            // Build the clean JSON Payload
+            const payload = {
+                user: formData.get('submitter_name'),
+                newFormulaName: formData.get('new_formula_name'),
+                newFormulaLogic: formData.get('new_formula_logic'),
+                generalFeedback: formData.get('general_feedback'),
+                formulaFeedback: []
+            };
+
+            // Loop through all table rows to find active feedback
+            Object.keys(formulaData).forEach(key => {
+                const action = formData.get(`action_${key}`);
+                if (action) {
+                    payload.formulaFeedback.push({
+                        formula: formulaData[key].title,
+                        action: action,
+                        reasoning: formData.get(`reason_${key}`)
+                    });
+                }
+            });
+
+            // Make sure they actually entered something
+            if (payload.formulaFeedback.length === 0 && !payload.newFormulaName && !payload.generalFeedback) {
+                alert("Please provide at least one piece of feedback before submitting.");
+                return;
+            }
+
+            // Update UI to "Loading"
+            const submitBtn = document.getElementById('submitBtn');
+            const originalText = submitBtn.innerText;
+            submitBtn.innerText = "Submitting...";
+            submitBtn.disabled = true;
+
+            // Send to Google Apps Script using Form Encoded Data (Most reliable for Google Scripts)
+            fetch(form.action, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    payload: JSON.stringify(payload)
+                })
+            })
+            .then(() => {
+                // Show Success Screen
+                document.getElementById('nativeFeedbackForm').classList.add('hidden');
+                document.getElementById('feedbackSuccess').classList.remove('hidden');
+                document.getElementById('feedbackSuccess').classList.add('flex');
+                document.getElementById('feedbackFooter').classList.add('hidden');
+            })
+            .catch(error => {
+                console.error(error);
+                alert("There was an issue submitting your feedback.");
+                submitBtn.innerText = originalText;
+                submitBtn.disabled = false;
+            });
+        }
+
+
+        // ==========================================
+        // Hover Cross-Highlighting Logic
+        // ==========================================
+        // Maps each output to the array of input IDs that drive it
+        const dependencyMap = {
+            productivity: ['section-productivity', 'global-devs', 'global-rate'],
+            apiDesign: ['section-api-design', 'global-rate'],
+            onboarding: ['section-onboarding', 'global-hires', 'global-rate'],
+            rework: ['section-duplication', 'global-rate'],
+            costDelay: ['section-cost-delay'], // Does not depend on rate or dev count, stands alone
+            support: ['section-support'],
+            qaFte: ['section-qa-fte'],
+            governance: ['section-governance', 'global-rate'],
+            outage: ['section-outage'],
+            provisioning: ['global-hires', 'global-rate'],
+            integration: ['section-integration', 'global-rate'],
+            testing: ['section-testing', 'global-releases', 'global-rate'],
+            defects: ['section-defects', 'global-rate'],
+            security: [] 
+        };
+
+        function setHighlightOutput(type) {
+            document.querySelectorAll('.output-item').forEach(el => {
+                if (el.getAttribute('data-type') === type) {
+                    el.classList.add('output-highlight');
+                    el.classList.remove('output-dim');
+                } else {
+                    el.classList.add('output-dim');
+                    el.classList.remove('output-highlight');
+                }
+            });
+
+            const deps = dependencyMap[type] || [];
+            document.querySelectorAll('.input-section-highlightable').forEach(el => {
+                if (deps.includes(el.id)) {
+                    el.classList.add('input-highlight');
+                    el.classList.remove('input-dim');
+                } else {
+                    el.classList.add('input-dim');
+                    el.classList.remove('input-highlight');
+                }
+            });
+        }
+
+        function setHighlightInput(inputId) {
+            document.querySelectorAll('.input-section-highlightable').forEach(el => {
+                if (el.id === inputId) {
+                    el.classList.add('input-highlight');
+                    el.classList.remove('input-dim');
+                } else {
+                    el.classList.add('input-dim');
+                    el.classList.remove('input-highlight');
+                }
+            });
+
+            const affectedOutputs = Object.keys(dependencyMap).filter(key => dependencyMap[key].includes(inputId));
+            document.querySelectorAll('.output-item').forEach(el => {
+                if (affectedOutputs.includes(el.getAttribute('data-type'))) {
+                    el.classList.add('output-highlight');
+                    el.classList.remove('output-dim');
+                } else {
+                    el.classList.add('output-dim');
+                    el.classList.remove('output-highlight');
+                }
+            });
+        }
+
+        function clearHighlight() {
+            document.querySelectorAll('.output-item').forEach(el => {
+                el.classList.remove('output-highlight', 'output-dim');
+            });
+            document.querySelectorAll('.input-section-highlightable').forEach(el => {
+                el.classList.remove('input-highlight', 'input-dim');
+            });
+        }
+
+
+        function showFormula(type) {
+            const data = formulaData[type];
+            if(data) {
+                document.getElementById('modalTitle').innerText = data.title;
+                document.getElementById('modalFormula').innerText = data.formula;
+                document.getElementById('modalDesc').innerText = data.desc;
+                document.getElementById('formulaModal').classList.remove('hidden');
+            }
+        }
+        function closeModal() { document.getElementById('formulaModal').classList.add('hidden'); }
+        document.getElementById('formulaModal').addEventListener('click', e => { if(e.target === document.getElementById('formulaModal')) closeModal(); });
+
+        function calculate() {
+            const selectedPersonas = Array.from(document.querySelectorAll('input[name="persona"]:checked')).map(cb => cb.value);
+            const isDefault = selectedPersonas.length === 0;
+
+            const devs = parseInt(document.getElementById('numDevs').value) || 0;
+            const rate = parseInt(document.getElementById('hourlyRate').value) || 0;
+            const hires = parseInt(document.getElementById('numNewHires').value) || 0;
+            const releases = parseInt(document.getElementById('annualReleases').value) || 0;
+            const seatCost = parseInt(document.getElementById('seatCost').value) || 588;
+
+            // Visibility Logic & Flag Setting for Step 3 Container
+            const step3Section = document.getElementById('step3-section');
+            if (isDefault) {
+                step3Section.classList.add('hidden-section');
+            } else {
+                step3Section.classList.remove('hidden-section');
+            }
+
+            const p = { 
+                prod: false, apiDes: false, onb: false, dup: false, support: false, costDelay: false,
+                qaFte: false, gov: false, outage: false, int: false, test: false, def: false,
+                prov: false, sec: true // sec is always true
+            };
+
+            const sections = document.querySelectorAll('#step3-section .input-section');
+            sections.forEach(section => {
+                const audienceAttr = section.getAttribute('data-audience');
+                const audiences = audienceAttr ? audienceAttr.split(',') : [];
+                const isVisible = !isDefault && audiences.some(r => selectedPersonas.includes(r));
+                
+                section.classList.toggle('hidden-section', !isVisible);
+
+                // Update calculation flags if visible
+                if (isVisible) {
+                    if(section.id.includes('productivity')) p.prod = true;
+                    if(section.id.includes('api-design')) p.apiDes = true;
+                    if(section.id.includes('onboarding')) p.onb = true;
+                    if(section.id.includes('duplication')) p.dup = true;
+                    if(section.id.includes('support')) p.support = true;
+                    if(section.id.includes('cost-delay')) p.costDelay = true;
+                    if(section.id.includes('qa-fte')) p.qaFte = true;
+                    if(section.id.includes('governance')) p.gov = true;
+                    if(section.id.includes('outage')) p.outage = true;
+                    if(section.id.includes('integration')) p.int = true;
+                    if(section.id.includes('testing')) p.test = true;
+                    if(section.id.includes('defects')) p.def = true;
+                }
+            });
+
+            // Logic for IT Provisioning tied to Platform
+            if(!isDefault && selectedPersonas.includes('platform')) { 
+                p.prov = true; 
+            }
+
+            const hoursWasted = parseFloat(document.getElementById('prodHours').value) || 0;
+            const valProd = p.prod ? devs * (hoursWasted * 0.50) * 52 * rate : 0;
+
+            const netNewApis = parseInt(document.getElementById('netNewApis').value) || 0;
+            const hoursPerApi = parseFloat(document.getElementById('hoursPerApi').value) || 0;
+            const valApiDes = p.apiDes ? netNewApis * hoursPerApi * 0.25 * rate * 0.50 : 0;
+
+            const rampWeeks = parseInt(document.getElementById('rampWeeks').value) || 0;
+            const valOnb = p.onb ? hires * (rampWeeks * 40 * 0.40) * rate : 0;
+
+            const dupProj = parseInt(document.getElementById('dupProjects').value) || 0;
+            const valDup = p.dup ? dupProj * 3 * 3 * 160 * rate : 0;
+
+            const bugTickets = parseInt(document.getElementById('bugTickets').value) || 0;
+            const costPerTicket = parseFloat(document.getElementById('costPerTicket').value) || 0;
+            const valSupport = p.support ? bugTickets * costPerTicket * 0.30 : 0;
+
+            const revImpact = parseFloat(document.getElementById('revImpact').value) || 0;
+            const delayReleases = parseInt(document.getElementById('delayReleases').value) || 0;
+            const delayWeeks = parseFloat(document.getElementById('delayWeeks').value) || 0;
+            const valCostDelay = p.costDelay ? revImpact * delayReleases * delayWeeks * 0.50 : 0;
+
+            const numQaEng = parseInt(document.getElementById('numQaEng').value) || 0;
+            const qaSalary = parseFloat(document.getElementById('qaSalary').value) || 0;
+            const valQaFte = p.qaFte ? numQaEng * qaSalary * 0.65 * 0.50 : 0;
+
+            const prs = parseInt(document.getElementById('prsReviewed').value) || 0;
+            const mins = parseInt(document.getElementById('minsReview').value) || 0;
+            const archMult = parseFloat(document.getElementById('archMultiplier').value) || 1.25;
+            const govSave = (parseFloat(document.getElementById('govSavings').value) || 90) / 100;
+            const valGov = p.gov ? prs * (mins/60) * (rate * archMult) * govSave : 0;
+
+            const numOutages = parseInt(document.getElementById('numOutages').value) || 0;
+            const costPerOutage = parseFloat(document.getElementById('costPerOutage').value) || 0;
+            const valOutage = p.outage ? numOutages * costPerOutage * 0.30 * 0.50 : 0;
+
+            const valProv = p.prov ? hires * 2 * (rate * 0.75) : 0;
+
+            const intCount = parseInt(document.getElementById('intCount').value) || 0;
+            const ttfc = parseFloat(document.getElementById('ttfcHours').value) || 0;
+            const valInt = p.int ? intCount * (Math.max(0, ttfc - 0.25)) * rate : 0;
+
+            const regHours = parseFloat(document.getElementById('regHours').value) || 0;
+            const valTest = p.test ? releases * regHours * 0.95 * rate : 0;
+
+            const prodBugs = parseInt(document.getElementById('prodBugs').value) || 0;
+            const valDef = p.def ? prodBugs * 100 * rate : 0;
+
+            // Risk mitigation is calculated unconditionally as per prompt request
+            const valSec = 4450000 * 0.005;
+
+            const totalSavings = valProd + valApiDes + valOnb + valDup + valSupport + valCostDelay + valQaFte + valGov + valOutage + valProv + valInt + valTest + valDef + valSec;
+            const totalCost = devs * seatCost;
+            const roi = totalCost > 0 ? (totalSavings / totalCost).toFixed(1) : "0";
+
+            const bullets = document.getElementById('strategicBullets');
+            bullets.innerHTML = '';
+            let strats = [];
+            
+            if (!isDefault) {
+                if(selectedPersonas.includes('platform')) {
+                    strats.push("Tamed API Sprawl and Increased Efficiency");
+                    strats.push("Automated Governance and Risk Reduction");
+                    strats.push("Accelerated Delivery and Enhanced Productivity");
+                }
+                if(selectedPersonas.includes('product')) {
+                    strats.push("Increase developer velocity & reuse.");
+                    strats.push("Accelerate onboarding & integration time.");
+                    strats.push("Protect revenue from delayed time-to-market."); // Added context
+                }
+                if(selectedPersonas.includes('qe')) {
+                    strats.push("Shift testing left to reduce production defects.");
+                    strats.push("Compress regression cycles via automation.");
+                }
+                [...new Set(strats)].forEach(t => bullets.innerHTML += `<div style="margin-bottom:8px;"><span style="color:#9CA3AF;margin-right:8px;">•</span><span style="color:#E5E7EB;">${t}</span></div>`);
+            } else {
+                bullets.innerHTML = '<p style="color:#6B7280;font-size:12px;font-style:italic;">Select an audience to uncover strategic outcomes.</p>';
+            }
+
+            document.getElementById('opImpactLeft').innerHTML = '';
+            document.getElementById('opImpactRight').innerHTML = '';
+            
+            let impactItems = [];
+            if(valProd > 0) impactItems.push({label: "Developer Productivity", val: valProd, sub: `(Recovering ${hoursWasted} hrs/dev/wk)`, type: 'productivity'});
+            if(valApiDes > 0) impactItems.push({label: "API Design Acceleration", val: valApiDes, sub: "Faster design and early testing", type: 'apiDesign'});
+            if(valOnb > 0) impactItems.push({label: "Onboarding Velocity", val: valOnb, sub: "Reduced ramp time by 40%", type: 'onboarding'});
+            if(valDup > 0) impactItems.push({label: "Avoided Rework", val: valDup, sub: "Eliminating redundant API builds", type: 'rework'});
+            if(valCostDelay > 0) impactItems.push({label: "Cost of Delay Avoided", val: valCostDelay, sub: "Protected revenue via accelerated delivery", type: 'costDelay'});
+            if(valSupport > 0) impactItems.push({label: "Support Center Savings", val: valSupport, sub: "Reduced bug-related ticket volume", type: 'support'});
+            if(valQaFte > 0) impactItems.push({label: "QA FTE Efficiencies", val: valQaFte, sub: "Automated testing scaling", type: 'qaFte'});
+            if(valGov > 0) impactItems.push({label: "Governance Efficiency", val: valGov, sub: "Automating API styling & linting", type: 'governance'});
+            if(valOutage > 0) impactItems.push({label: "Outage & Reliability Savings", val: valOutage, sub: "Avoided service degradations", type: 'outage'});
+            if(valProv > 0) impactItems.push({label: "IT Provisioning", val: valProv, sub: "Automated SCIM/SSO access", type: 'provisioning'});
+            if(valInt > 0) impactItems.push({label: "Integration Velocity", val: valInt, sub: `TTFC reduced to 15 mins`, type: 'integration'});
+            if(valTest > 0) impactItems.push({label: "Test Cycle Compression", val: valTest, sub: "95% reduction in regression time", type: 'testing'});
+            if(valDef > 0) impactItems.push({label: "Defect Remediation", val: valDef, sub: "Cost of bugs in Prod vs Dev", type: 'defects'});
+            if(valSec > 0) impactItems.push({label: "Risk Mitigation", val: valSec, sub: "Data breach risk reduction", type: 'security'});
+
+            if (impactItems.length === 0) {
+                document.getElementById('opImpactLeft').innerHTML = '<p style="color:#6B7280;font-size:12px;">Adjust metrics on the left to uncover value.</p>';
+            } else {
+                impactItems.forEach((item, index) => {
+                    const html = renderItem(item);
+                    if (index % 2 === 0) {
+                        document.getElementById('opImpactLeft').innerHTML += html;
+                    } else {
+                        document.getElementById('opImpactRight').innerHTML += html;
+                    }
+                });
+            }
+
+            document.getElementById('outTotalSavings').innerText = formatMoney(totalSavings);
+            document.getElementById('outTotalSavingsText').innerText = formatMoney(totalSavings);
+            document.getElementById('outCost').innerText = formatMoney(totalCost);
+            document.getElementById('outROI').innerText = roi + 'x';
+        }
+
+        function renderItem(item) {
+            const isRisk = item.type === 'security';
+            const borderStyle = isRisk ? '1px dashed rgba(255, 108, 55, 0.4)' : '2px solid transparent';
+            const bgStyle = isRisk ? 'rgba(255, 108, 55, 0.05)' : 'transparent';
+            const badge = isRisk ? '<span style="margin-left: 8px; font-size: 9px; text-transform: uppercase; background-color: #1F2937; color: #9CA3AF; padding: 2px 6px; border-radius: 4px; border: 1px solid #374151; vertical-align: middle;">Static Benchmark</span>' : '';
+            const pulseClass = isRisk ? 'risk-pulse' : '';
+
+            return `
+                <div class="output-item transition-all duration-300 ${pulseClass}" data-type="${item.type}" onmouseenter="setHighlightOutput('${item.type}')" onmouseleave="clearHighlight()" style="line-height: 1.4; font-family: 'Inter', sans-serif; padding: 10px; margin-left: -10px; margin-right: -10px; margin-bottom: 16px; border-radius: 8px; border: ${borderStyle}; background-color: ${bgStyle};">
+                    <span style="color: white; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center;">
+                        ${item.label}
+                        <span class="info-icon cursor-pointer inline-block ml-1 opacity-50 hover:opacity-100" onclick="showFormula('${item.type}')" style="vertical-align:middle; cursor:pointer;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                        </span>
+                        ${badge}
+                    </span><br>
+                    <span style="color: #FF6C37; font-family: monospace; font-size: 16px; font-weight: 700;">${formatMoney(item.val)}</span>
+                    <span style="color: #9CA3AF; font-size: 11px;"> / year</span><br>
+                    <span style="color: #9CA3AF; font-size: 10px; font-style: italic;">${item.sub}</span>
+                </div>
+            `;
+        }
+
+        function copyToClipboard() {
+            clearHighlight(); 
+            const node = document.getElementById('slideContent');
+            const range = document.createRange();
+            range.selectNode(node);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+            try { 
+                document.execCommand('copy'); 
+                document.getElementById('toast').classList.remove('opacity-0'); 
+                setTimeout(()=>document.getElementById('toast').classList.add('opacity-0'), 2000); 
+            } catch(e) {}
+            window.getSelection().removeAllRanges();
+        }
+
+        // Initialize Calculator and Table on load
+        window.onload = () => {
+            calculate();
+            populateFeedbackTable();
+        };
+    </script>
+</body>
+</html>
