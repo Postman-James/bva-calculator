@@ -1492,7 +1492,7 @@
                     strats.push("Compress regression cycles via automation.");
                     if (agentMode) strats.push("Automated compliance evidence via AI catalog queries.");
                 }
-                [...new Set(strats)].forEach(t => bullets.innerHTML += `<div style="margin-bottom:8px;"><span style="color:#9CA3AF;margin-right:8px;">•</span><span style="color:#E5E7EB;">${t}</span></div>`);
+                [...new Set(strats)].forEach(t => bullets.innerHTML += `<div style="margin-bottom:8px;display:flex;align-items:flex-start;"><span style="color:#FF6C37;margin-right:10px;flex-shrink:0;font-size:16px;line-height:1.3;">✦</span><span style="color:#E5E7EB;">${t}</span></div>`);
             } else {
                 bullets.innerHTML = '<p style="color:#6B7280;font-size:12px;font-style:italic;">Select an audience to uncover strategic outcomes.</p>';
             }
