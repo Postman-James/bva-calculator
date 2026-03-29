@@ -269,6 +269,60 @@
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen relative overflow-x-hidden">
 
+    <!-- Login Gate -->
+    <div id="loginGate" class="fixed inset-0 z-[9999] flex items-center justify-center bg-gray-900">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+            <div class="bg-gray-50 px-6 py-5 border-b border-gray-200 flex items-center gap-3">
+                <img src="https://voyager.postman.com/logo/postman-logo-icon-orange.svg" alt="Postman" class="h-8 w-8">
+                <h2 class="text-lg font-bold text-gray-900">BVA Calculator</h2>
+            </div>
+            <form id="loginForm" class="p-6 space-y-4" onsubmit="return handleLogin(event)">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Username</label>
+                    <input type="text" id="loginUser" autocomplete="username" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-postman focus:border-transparent" placeholder="Enter username" autofocus>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Password</label>
+                    <input type="password" id="loginPass" autocomplete="current-password" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-postman focus:border-transparent" placeholder="Enter password">
+                </div>
+                <p id="loginError" class="text-sm text-red-500 hidden">Invalid username or password.</p>
+                <button type="submit" class="w-full py-2.5 bg-postman text-white rounded-md text-sm font-semibold hover:bg-postman-hover transition-colors shadow-sm cursor-pointer">Sign In</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const _authHash = 'a2e71728577ffca06ed3218dd6dcce8501d237f0b7960de87dc7f2b3c04a82a0';
+
+        async function sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const user = document.getElementById('loginUser').value.trim();
+            const pass = document.getElementById('loginPass').value;
+            const hash = await sha256(user + ':' + pass);
+            if (hash === _authHash) {
+                sessionStorage.setItem('bva_auth', 'true');
+                document.getElementById('loginGate').remove();
+            } else {
+                document.getElementById('loginError').classList.remove('hidden');
+                document.getElementById('loginPass').value = '';
+                document.getElementById('loginPass').focus();
+            }
+            return false;
+        }
+
+        // Auto-unlock if already authenticated this session
+        if (sessionStorage.getItem('bva_auth') === 'true') {
+            document.getElementById('loginGate').remove();
+        }
+    </script>
+
     <!-- Formula Modal (Shared) -->
     <div id="formulaModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-gray-900 bg-opacity-75 backdrop-blur-sm">
         <div class="bg-white rounded-lg shadow-2xl max-w-lg w-full mx-4 overflow-hidden transform transition-all scale-100">
