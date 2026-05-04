@@ -1029,6 +1029,24 @@
                                 Executive Business Value Summary
                             </h3>
                             <div class="flex items-center gap-2">
+                                <!-- Currency Picker -->
+                                <div class="flex items-center gap-1.5">
+                                    <label for="currencySelect" class="text-xs text-gray-400">Currency:</label>
+                                    <select id="currencySelect" onchange="changeCurrency(this.value)" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1.5 rounded border border-gray-600 cursor-pointer focus:outline-none focus:ring-1 focus:ring-postman">
+                                        <option value="USD">USD ($)</option>
+                                        <option value="INR">INR (₹)</option>
+                                        <option value="GBP">GBP (£)</option>
+                                        <option value="EUR">EUR (€)</option>
+                                        <option value="AUD">AUD (A$)</option>
+                                        <option value="SGD">SGD (S$)</option>
+                                        <option value="CAD">CAD (C$)</option>
+                                        <option value="JPY">JPY (¥)</option>
+                                        <option value="BRL">BRL (R$)</option>
+                                    </select>
+                                    <button onclick="toggleFxPanel()" title="Edit FX rates" class="text-xs text-gray-400 hover:text-postman px-1.5 py-1.5 rounded transition-colors cursor-pointer">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                    </button>
+                                </div>
                                 <button onclick="exportPDF()" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded transition-colors flex items-center gap-1 cursor-pointer border border-gray-600" id="pdfBtn">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1036,6 +1054,17 @@
                                     Export PDF
                                 </button>
                             </div>
+                        </div>
+                        <!-- FX Rate Editor Panel (hidden by default) -->
+                        <div id="fxRatePanel" class="hidden bg-gray-800 border-b border-gray-700 px-4 py-3">
+                            <div class="flex items-start justify-between gap-3 mb-2">
+                                <div>
+                                    <p class="text-xs text-gray-300 font-semibold mb-1">FX Rates (1 USD =)</p>
+                                    <p class="text-[10px] text-gray-500">Snapshot as of 2026-05-04. Edit to use a different rate. Forrester / State of the API source data is USD-anchored.</p>
+                                </div>
+                                <button onclick="toggleFxPanel()" class="text-gray-400 hover:text-white text-lg leading-none">&times;</button>
+                            </div>
+                            <div id="fxRateInputs" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
                         </div>
                         
                         <div class="overflow-x-auto bg-gray-900 p-2" id="executiveSummaryBody">
@@ -1070,11 +1099,11 @@
                                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
                                                     <span style="color: #9CA3AF; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 4px;">Annual Seat Cost: <span id="outSeatCostLabel" style="color: #E5E7EB;">$588/user/yr</span></span>
                                                     <button id="asaToggle" onclick="toggleAddon('asa')" style="display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; border: 1px solid #FF6C37; background: transparent; color: #FF6C37; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap;">
-                                                        ASA +$29/mo
+                                                        ASA <span id="asaPriceLabel">+$29/mo</span>
                                                         <a href="https://www.postman.com/pricing/#advanced-security-administration-add-on" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color: #6B7280; font-size: 10px; line-height: 1; text-decoration: none; transition: color 0.15s;" onmouseenter="this.style.color='#FF6C37'" onmouseleave="this.style.color='#6B7280'">ℹ</a>
                                                     </button>
                                                     <button id="supportToggle" onclick="toggleAddon('support')" style="display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; border: 1px solid #FF6C37; background: transparent; color: #FF6C37; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap;">
-                                                        Support +$8/mo
+                                                        Support <span id="supportPriceLabel">+$8/mo</span>
                                                         <a href="https://www.postman.com/pricing/#premium-support-add-on" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color: #6B7280; font-size: 10px; line-height: 1; text-decoration: none; transition: color 0.15s;" onmouseenter="this.style.color='#FF6C37'" onmouseleave="this.style.color='#6B7280'">ℹ</a>
                                                     </button>
                                                 </div>
@@ -1557,7 +1586,125 @@
         // ==========================================
         // Calculator Engine Data
         // ==========================================
-        const formatMoney = (amount) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
+        // Currency state. Math runs in whichever currency the user has selected.
+        // When the user switches currency, money inputs are auto-converted using the FX rate
+        // delta, so totals stay coherent. Rates are an editable snapshot — see the FX panel.
+        const currencyConfigs = {
+            USD: { locale: 'en-US', symbol: '$',  label: 'US Dollar' },
+            INR: { locale: 'en-IN', symbol: '₹',  label: 'Indian Rupee' },
+            GBP: { locale: 'en-GB', symbol: '£',  label: 'British Pound' },
+            EUR: { locale: 'de-DE', symbol: '€',  label: 'Euro' },
+            AUD: { locale: 'en-AU', symbol: 'A$', label: 'Australian Dollar' },
+            SGD: { locale: 'en-SG', symbol: 'S$', label: 'Singapore Dollar' },
+            CAD: { locale: 'en-CA', symbol: 'C$', label: 'Canadian Dollar' },
+            JPY: { locale: 'ja-JP', symbol: '¥',  label: 'Japanese Yen' },
+            BRL: { locale: 'pt-BR', symbol: 'R$', label: 'Brazilian Real' }
+        };
+        // Snapshot rates as of 2026-05-04. User-editable via the FX panel.
+        let _fxRates = { USD: 1, INR: 83, GBP: 0.79, EUR: 0.92, AUD: 1.52, SGD: 1.34, CAD: 1.37, JPY: 151, BRL: 5.05 };
+        let _displayCurrency = 'USD';
+        // IDs of money inputs that get auto-converted when currency changes.
+        const moneyInputIds = ['hourlyRate', 'qaSalary', 'revImpact', 'costPerOutage', 'partnerDailyCost', 'blockedDailyCost'];
+
+        const getCurrencySymbol = () => currencyConfigs[_displayCurrency].symbol;
+        const formatMoney = (amount) => {
+            const cfg = currencyConfigs[_displayCurrency];
+            return new Intl.NumberFormat(cfg.locale, { style: 'currency', currency: _displayCurrency, maximumFractionDigits: 0 }).format(amount);
+        };
+
+        // Swap "($)" tokens in static input labels to the active currency symbol.
+        // Also rewrites the inlineInputMap labels so the formula drill-down picks up the change.
+        function refreshCurrencyLabels() {
+            const sym = getCurrencySymbol();
+            // Static labels — match "($)" or "(<any prior symbol>)" inside labels and methodology cells.
+            const symRegex = /\((\$|₹|£|€|A\$|S\$|C\$|¥|R\$)\)/g;
+            document.querySelectorAll('label, td').forEach(el => {
+                // Skip cells that contain other elements — only rewrite leaf text nodes.
+                if (el.children.length > 0) return;
+                if (symRegex.test(el.textContent)) {
+                    el.textContent = el.textContent.replace(symRegex, '(' + sym + ')');
+                }
+            });
+            // inlineInputMap is rendered into the formula drill-down; rewrite its labels in place.
+            if (typeof inlineInputMap !== 'undefined') {
+                Object.values(inlineInputMap).forEach(arr => arr.forEach(item => {
+                    if (item.label && symRegex.test(item.label)) {
+                        item.label = item.label.replace(symRegex, '(' + sym + ')');
+                    }
+                }));
+            }
+        }
+
+        // Convert all money inputs from one currency to another by ratio of FX rates.
+        // Math is currency-agnostic — we keep inputs and outputs in the same currency.
+        function convertMoneyInputs(fromRate, toRate) {
+            if (fromRate === toRate) return;
+            const ratio = toRate / fromRate;
+            moneyInputIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const v = parseFloat(el.value);
+                if (!isNaN(v)) el.value = Math.round(v * ratio);
+            });
+        }
+
+        function changeCurrency(newCurrency) {
+            if (!currencyConfigs[newCurrency]) return;
+            const oldRate = _fxRates[_displayCurrency];
+            const newRate = _fxRates[newCurrency];
+            convertMoneyInputs(oldRate, newRate);
+            _displayCurrency = newCurrency;
+            const sel = document.getElementById('currencySelect');
+            if (sel && sel.value !== newCurrency) sel.value = newCurrency;
+            refreshCurrencyLabels();
+            updateAddonPriceLabels();
+            calculate();
+        }
+
+        // ASA $29/mo and Support $8/mo are USD list prices. Render them in the active currency
+        // (per-month, formatted with the active locale).
+        function updateAddonPriceLabels() {
+            const fx = _fxRates[_displayCurrency];
+            const cfg = currencyConfigs[_displayCurrency];
+            const fmtMonthly = (usdPerMonth) => new Intl.NumberFormat(cfg.locale, { style: 'currency', currency: _displayCurrency, maximumFractionDigits: 0 }).format(usdPerMonth * fx);
+            const asaEl = document.getElementById('asaPriceLabel');
+            const supEl = document.getElementById('supportPriceLabel');
+            if (asaEl) asaEl.textContent = '+' + fmtMonthly(29) + '/mo';
+            if (supEl) supEl.textContent = '+' + fmtMonthly(8) + '/mo';
+        }
+
+        function toggleFxPanel() {
+            const panel = document.getElementById('fxRatePanel');
+            if (!panel) return;
+            const wasHidden = panel.classList.contains('hidden');
+            if (wasHidden) renderFxRateInputs();
+            panel.classList.toggle('hidden');
+        }
+
+        function renderFxRateInputs() {
+            const container = document.getElementById('fxRateInputs');
+            if (!container) return;
+            container.innerHTML = Object.keys(_fxRates).map(code => `
+                <div class="flex items-center gap-1.5">
+                    <span class="text-[10px] text-gray-400 w-9 font-mono">${code}</span>
+                    <input type="number" step="any" min="0" value="${_fxRates[code]}" data-code="${code}" oninput="updateFxRate(this)" class="flex-1 text-xs bg-gray-900 text-white border border-gray-700 rounded px-1.5 py-1 focus:outline-none focus:border-postman" ${code === 'USD' ? 'disabled' : ''}>
+                </div>
+            `).join('');
+        }
+
+        function updateFxRate(inputEl) {
+            const code = inputEl.dataset.code;
+            const newVal = parseFloat(inputEl.value);
+            if (!code || isNaN(newVal) || newVal <= 0) return;
+            // If the edited rate is the active display currency, convert inputs to keep totals coherent.
+            if (code === _displayCurrency) {
+                const oldRate = _fxRates[code];
+                convertMoneyInputs(oldRate, newVal);
+            }
+            _fxRates[code] = newVal;
+            calculate();
+        }
+
         const updateRangeDisplay = (id, display, suffix) => document.getElementById(display).innerText = document.getElementById(id).value + suffix;
 
         function updateAiBoost() {
@@ -1667,15 +1814,19 @@
                 c.classList.toggle('border-gray-100', c.dataset.tier !== tierKey);
             });
 
+            // Tier presets are authored in USD. Convert money-typed inputs into the active currency.
+            const fx = _fxRates[_displayCurrency];
             for (const [inputId, val] of Object.entries(profile)) {
                 if (inputId === 'label') continue;
                 const el = document.getElementById(inputId);
                 if (!el) continue;
-                el.value = val;
+                const isMoney = moneyInputIds.includes(inputId);
+                const finalVal = isMoney ? Math.round(val * fx) : val;
+                el.value = finalVal;
                 if (rangeDisplayMap[inputId]) {
                     const rd = rangeDisplayMap[inputId];
                     const dispEl = document.getElementById(rd.display);
-                    if (dispEl) dispEl.innerText = val + rd.suffix;
+                    if (dispEl) dispEl.innerText = finalVal + rd.suffix;
                 }
             }
             calculate();
@@ -2417,10 +2568,13 @@
             const rate = parseInt(document.getElementById('hourlyRate').value) || 0;
             const hires = parseInt(document.getElementById('numNewHires').value) || 0;
             const releases = parseInt(document.getElementById('annualReleases').value) || 0;
-            const baseSeatCost = 588; // $49/mo base
+            // Postman pricing is USD-denominated. Multiply by the active FX rate so seat cost
+            // and ROI render in the user-selected currency.
+            const fx = _fxRates[_displayCurrency];
+            const baseSeatCost = 588 * fx; // $49/mo base
             const asaActive = _addonAsa;
             const supportActive = _addonSupport;
-            const seatCost = baseSeatCost + (asaActive ? 348 : 0) + (supportActive ? 96 : 0); // ASA +$29/mo ($348/yr), Support +$8/mo ($96/yr)
+            const seatCost = baseSeatCost + (asaActive ? 348 * fx : 0) + (supportActive ? 96 * fx : 0); // ASA +$29/mo ($348/yr), Support +$8/mo ($96/yr)
 
             // Visibility Logic & Flag Setting for Step 3 Container
             const step3Section = document.getElementById('step3-section');
@@ -2581,7 +2735,7 @@
             document.getElementById('outCost').innerText = formatMoney(totalCost);
             document.getElementById('outROI').innerText = roi + 'x';
             const seatCostLabel = document.getElementById('outSeatCostLabel');
-            if (seatCostLabel) seatCostLabel.innerText = '$' + seatCost.toLocaleString() + '/user/yr';
+            if (seatCostLabel) seatCostLabel.innerText = formatMoney(seatCost) + '/user/yr';
             
             // Adjust ROI box style based on Agent mode
             const roiValEl = document.getElementById('outROI');
@@ -2895,6 +3049,8 @@
         // Initialize Calculator and Table on load
         window.onload = () => {
             toggleAgentMode(); // Set initial UI state
+            refreshCurrencyLabels(); // Apply active currency symbol to static labels
+            updateAddonPriceLabels();
             calculate();
             populateFeedbackTable();
         };
